@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "amie.fullname" . }}-config
+  labels:
+    {{- include "amie.labels" . | nindent 4 }}
+data:
+  APP_NAME: "usps-amie-chatbot"
+  APP_ENV: "prod"
+  LOG_LEVEL: {{ .Values.backend.logLevel | quote }}
+  CORS_ORIGINS: "*"
+
+  LLM_PROVIDER: {{ .Values.llm.provider | quote }}
+  LLM_MODEL: {{ .Values.llm.model | quote }}
+  LLM_MAX_TOKENS: {{ .Values.llm.maxTokens | quote }}
+  LLM_TEMPERATURE: {{ .Values.llm.temperature | quote }}
+
+  OLLAMA_BASE_URL: {{ include "amie.ollamaBaseUrl" . | quote }}
+  OLLAMA_MODEL: {{ .Values.llm.ollamaModel | quote }}
+
+  EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+  EMBEDDING_DIM: "384"
+  KB_PATH: "/app/data/knowledge_base"
+  RETRIEVAL_TOP_K: "5"
+
+  REDIS_URL: {{ include "amie.redisUrl" . | quote }}
+  REDIS_VECTOR_INDEX: {{ .Values.redis.vectorIndex | quote }}
+  REDIS_CONVO_PREFIX: {{ .Values.redis.convoPrefix | quote }}
+  REDIS_CACHE_TTL_SECONDS: "3600"
+
+  ADDRESS_VERIFIER: {{ .Values.addressVerifier.provider | quote }}
+  USPS_API_BASE_URL: {{ .Values.addressVerifier.uspsApi.baseUrl | quote }}
+
+  AUTH_ENABLED: {{ .Values.auth.enabled | quote }}
+  JWT_AUDIENCE: {{ .Values.auth.jwtAudience | quote }}
+  JWT_ISSUER: {{ .Values.auth.jwtIssuer | quote }}

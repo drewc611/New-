@@ -1,0 +1,196 @@
+# Default values for USPS AMIE.
+# This file is rendered by Helm. Override fields with --set or a custom values file.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Global image pull policy and registry
+image:
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# LLM provider: ollama | anthropic | mock
+llm:
+  provider: mock
+  model: claude-opus-4-5
+  maxTokens: 2048
+  temperature: "0.2"
+  # Used only when provider = anthropic. Prefer sourcing via existingSecret.
+  anthropicApiKey: ""
+  existingSecretName: ""
+  # Used only when provider = ollama. Defaults to the in-cluster Ollama service
+  # if ollama.enabled = true.
+  ollamaBaseUrl: ""
+  ollamaModel: llama3.1
+
+# Address verification: mock | usps_api
+addressVerifier:
+  provider: mock
+  uspsApi:
+    baseUrl: https://secure.shippingapis.com
+    userId: ""
+    password: ""
+    existingSecretName: ""
+
+# Authentication (generic OIDC)
+auth:
+  enabled: false
+  jwtAudience: usps-amie
+  jwtIssuer: ""
+
+# =========================================================
+# Backend
+# =========================================================
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: usps-amie-backend
+    tag: "0.1.0"
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  logLevel: INFO
+  env: {}
+
+# =========================================================
+# Frontend
+# =========================================================
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: usps-amie-frontend
+    tag: "0.1.0"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+# =========================================================
+# Redis Stack (includes RediSearch for vectors)
+# =========================================================
+redis:
+  enabled: true
+  image:
+    repository: redis/redis-stack-server
+    tag: "7.4.0-v0"
+  service:
+    port: 6379
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  # Set auth password. When blank, a password is generated and stored in a
+  # Kubernetes Secret. Set existingSecretName to bring your own.
+  password: ""
+  existingSecretName: ""
+  vectorIndex: amie:vectors
+  convoPrefix: "amie:conv:"
+
+# =========================================================
+# Ollama (optional, for in-cluster LLM)
+# =========================================================
+ollama:
+  enabled: false
+  image:
+    repository: ollama/ollama
+    tag: "latest"
+  service:
+    port: 11434
+  persistence:
+    enabled: true
+    size: 30Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+
+# =========================================================
+# Ingress
+# =========================================================
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  hosts:
+    - host: amie.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: amie-tls
+    #   hosts:
+    #     - amie.example.com
+
+# =========================================================
+# Network policy
+# =========================================================
+networkPolicy:
+  enabled: true
+
+# =========================================================
+# ServiceAccount
+# =========================================================
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# =========================================================
+# Pod security
+# =========================================================
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL

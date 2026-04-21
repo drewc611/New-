@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Node
+node_modules/
+.vite/
+dist/
+*.log
+
+# Env and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Helm
+deploy/helm/usps-amie/charts/
+deploy/helm/usps-amie/Chart.lock
+
+# Docker
+.docker/

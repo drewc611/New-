@@ -1,0 +1,146 @@
+# Raw Kubernetes manifests for USPS AMIE
+#
+# This is a minimal, opinionated deployment for users who do not want to use
+# Helm. The Helm chart in ../helm/usps-amie is the primary supported path.
+# Apply with:
+#   kubectl create namespace amie
+#   kubectl apply -n amie -f amie.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: amie-config
+data:
+  APP_ENV: "prod"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: "*"
+  LLM_PROVIDER: "mock"
+  LLM_MODEL: "claude-opus-4-5"
+  EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+  EMBEDDING_DIM: "384"
+  KB_PATH: "/app/data/knowledge_base"
+  RETRIEVAL_TOP_K: "5"
+  REDIS_URL: "redis://amie-redis:6379/0"
+  REDIS_VECTOR_INDEX: "amie:vectors"
+  REDIS_CONVO_PREFIX: "amie:conv:"
+  REDIS_CACHE_TTL_SECONDS: "3600"
+  ADDRESS_VERIFIER: "mock"
+  AUTH_ENABLED: "false"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: amie-redis
+spec:
+  serviceName: amie-redis
+  replicas: 1
+  selector:
+    matchLabels: { app: amie-redis }
+  template:
+    metadata:
+      labels: { app: amie-redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis/redis-stack-server:7.4.0-v0
+          ports: [ { containerPort: 6379, name: redis } ]
+          volumeMounts: [ { name: data, mountPath: /data } ]
+          readinessProbe:
+            exec: { command: [ "redis-cli", "ping" ] }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources: { requests: { storage: 10Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: amie-redis
+spec:
+  selector: { app: amie-redis }
+  ports: [ { port: 6379, targetPort: redis } ]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amie-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: amie-backend }
+  template:
+    metadata:
+      labels: { app: amie-backend }
+    spec:
+      containers:
+        - name: backend
+          image: usps-amie-backend:0.1.0
+          ports: [ { containerPort: 8000, name: http } ]
+          envFrom:
+            - configMapRef: { name: amie-config }
+          livenessProbe:
+            httpGet: { path: /api/health/live, port: http }
+            initialDelaySeconds: 20
+          readinessProbe:
+            httpGet: { path: /api/health/ready, port: http }
+            initialDelaySeconds: 10
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: 1000m, memory: 2Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: amie-backend
+spec:
+  selector: { app: amie-backend }
+  ports: [ { port: 8000, targetPort: http } ]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amie-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: amie-frontend }
+  template:
+    metadata:
+      labels: { app: amie-frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: usps-amie-frontend:0.1.0
+          ports: [ { containerPort: 8080, name: http } ]
+          livenessProbe:
+            httpGet: { path: /, port: http }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: amie-frontend
+spec:
+  selector: { app: amie-frontend }
+  ports: [ { port: 80, targetPort: http } ]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amie
+spec:
+  rules:
+    - host: amie.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: amie-backend, port: { number: 8000 } }
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: amie-frontend, port: { number: 80 } }

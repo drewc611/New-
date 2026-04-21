@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis/redis-stack:7.4.0-v0
+    container_name: amie-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"  # RedisInsight UI
+    volumes:
+      - redis-data:/data
+    networks:
+      - amie-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    image: usps-amie-backend:dev
+    container_name: amie-backend
+    env_file:
+      - .env
+    environment:
+      - APP_ENV=dev
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend-data:/app/data-runtime
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - amie-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/docker/frontend.Dockerfile
+      target: dev
+    image: usps-amie-frontend:dev
+    container_name: amie-frontend
+    env_file:
+      - .env
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - amie-net
+
+  # Optional offline LLM. Run: docker compose --profile offline up
+  ollama:
+    image: ollama/ollama:latest
+    container_name: amie-ollama
+    profiles: ["offline"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - amie-net
+
+volumes:
+  redis-data:
+  backend-data:
+  ollama-data:
+
+networks:
+  amie-net:
+    driver: bridge

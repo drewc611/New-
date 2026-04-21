@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: "Inter", system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.prose-chat { line-height: 1.65; }
+.prose-chat p { margin: 0.5rem 0; }
+.prose-chat code {
+  background: #f1f5f9;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+.prose-chat pre {
+  background: #0f172a;
+  color: #f1f5f9;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+.prose-chat pre code { background: transparent; color: inherit; padding: 0; }
+.prose-chat ul, .prose-chat ol { padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-chat ul li { list-style: disc; }
+.prose-chat ol li { list-style: decimal; }
+.prose-chat a { color: #004b87; text-decoration: underline; }
+
+.typing-cursor::after {
+  content: "\25AE";
+  margin-left: 2px;
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

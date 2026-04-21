@@ -1,0 +1,38 @@
+[
+  {
+    "id": "pub28-sec-21",
+    "title": "Publication 28 Section 21 General Addressing Standards",
+    "url": "https://pe.usps.com/text/pub28/welcome.htm",
+    "text": "USPS Publication 28 establishes the addressing standards used to prepare mail for automation processing. A complete address contains a recipient line, a delivery address line, and a last line with city, state, and ZIP plus four. The delivery address line must appear immediately above the last line. All capital letters are preferred. Punctuation may be omitted except when required to distinguish abbreviations. Addresses should be left justified and use a simple sans serif font when printed. Directional prefixes such as N, S, E, W and suffixes such as NE, SW are part of the street name and are required when present in the database. Secondary address unit designators such as APT, STE, UNIT follow the primary address and appear on the same line when space allows."
+  },
+  {
+    "id": "pub28-sec-22-zip4",
+    "title": "Publication 28 Section 22 ZIP Plus Four Coding",
+    "url": "https://pe.usps.com/text/pub28/welcome.htm",
+    "text": "ZIP plus four adds four digits to the five digit ZIP code to identify a specific delivery segment such as a city block, a single building, an individual floor, or a post office box group. Mailers claiming automation discounts must include the nine digit ZIP with a hyphen between the fifth and sixth digits on printed mail, and must have coded the address using CASS certified software within the required interval. Delivery point barcodes include two additional digits that identify the exact delivery point within the ZIP plus four."
+  },
+  {
+    "id": "pub28-sec-25-secondary",
+    "title": "Publication 28 Section 25 Secondary Address Unit Designators",
+    "url": "https://pe.usps.com/text/pub28/welcome.htm",
+    "text": "Secondary address unit designators identify an individual unit within a multi unit building. Standard designators include APARTMENT which is abbreviated APT, SUITE which is abbreviated STE, UNIT, ROOM which is abbreviated RM, FLOOR which is abbreviated FL, and BUILDING which is abbreviated BLDG. When the secondary unit designator is not known, the pound sign may be used followed by the unit identifier, however APT, STE, or UNIT is preferred."
+  },
+  {
+    "id": "ams-coding-intro",
+    "title": "Address Management System Coding Manual Introduction",
+    "url": "https://postalpro.usps.com",
+    "text": "The Address Management System is the authoritative source for USPS deliverable address information. AMS coding assigns a route number, determines delivery mode, sequences deliveries per Customer Boundary Unit diagrams, and generates highrise defaults. AMS technicians follow a condition, action, and confidence pattern derived from published business rules and from Publication 28. Changes to AMS records are captured in change categories that include new build, alias update, directional correction, and boundary change. A full audit trail is preserved for each change including the rule applied, the confidence score, and the outcome."
+  },
+  {
+    "id": "cass-overview",
+    "title": "CASS Certification Overview",
+    "url": "https://postalpro.usps.com/certifications/cass",
+    "text": "The Coding Accuracy Support System provides a common measure by which to test the quality of address matching software. To achieve CASS certification participants must meet minimum accuracy thresholds including ninety eight point five percent for ZIP plus four, carrier route, five digit ZIP, and LACSLink, and one hundred percent for delivery point coding, eLOT, DPV or DSF2, RDI, and Perfect Address. CASS certification is valid until the end of the current certification period and must be renewed."
+  },
+  {
+    "id": "dpv-codes",
+    "title": "Delivery Point Validation Codes",
+    "url": "https://postalpro.usps.com",
+    "text": "Delivery Point Validation returns a confirmation indicator for each address. The value Y indicates that both the primary number and the secondary number when present are valid. The value S indicates that the primary number is valid but the secondary information is not confirmed. The value D indicates that the primary number is valid but secondary information is required and was not provided. The value N indicates that neither the primary nor the secondary information is valid. DPV is required for CASS certification and drives delivery point barcode assignment."
+  }
+]
