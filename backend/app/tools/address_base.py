@@ -28,5 +28,6 @@ def get_verifier() -> AddressVerifier:
             base_url=s.usps_api_base_url,
             user_id=s.usps_api_user_id,
             password=s.usps_api_password,
+            timeout_seconds=s.usps_api_timeout_seconds,
         )
     raise ValueError(f"unknown verifier: {s.address_verifier}")

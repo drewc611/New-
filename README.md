@@ -61,12 +61,22 @@ usps-amie-chatbot/
   .github/workflows/    CI
 ```
 
-## Quickstart (Local Docker)
+## Quickstart (Windows local build)
+
+```
+# Install Ollama Desktop from https://ollama.com/download/windows
+pwsh -ExecutionPolicy Bypass -File .\scripts\start-windows.ps1
+```
+
+See [docs/windows-quickstart.md](docs/windows-quickstart.md) for details.
+
+## Quickstart (Docker Compose)
 
 ```
 cp .env.example .env
 # edit .env: set LLM_PROVIDER=mock for no-key demo,
-# or LLM_PROVIDER=anthropic with ANTHROPIC_API_KEY
+# LLM_PROVIDER=ollama for local inference via the bundled Ollama
+# container, or LLM_PROVIDER=anthropic with ANTHROPIC_API_KEY
 docker compose up --build
 ```
 
@@ -74,6 +84,20 @@ docker compose up --build
 * Backend: http://localhost:8000
 * API docs: http://localhost:8000/docs
 * Redis Stack UI (RedisInsight): http://localhost:8001
+
+## Documentation
+
+| Topic | File |
+|---|---|
+| Markdown-driven configuration and content | [docs/markdown-driven.md](docs/markdown-driven.md) |
+| Environment variable reference | [docs/config.md](docs/config.md) |
+| Address verification pipeline and API | [docs/address-verification.md](docs/address-verification.md) |
+| Windows quickstart with Ollama Desktop | [docs/windows-quickstart.md](docs/windows-quickstart.md) |
+| Architecture overview | [docs/architecture.md](docs/architecture.md) |
+| Security model | [docs/security.md](docs/security.md) |
+| Deployment guide | [docs/deployment.md](docs/deployment.md) |
+| Local development (Docker) | [docs/local-dev.md](docs/local-dev.md) |
+| API surface | [docs/api.md](docs/api.md) |
 
 ## Quickstart (Kubernetes via Helm)
 

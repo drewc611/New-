@@ -1,0 +1,19 @@
+# Override file for Windows hosts that use Ollama Desktop on the host
+# machine rather than the bundled Ollama container.
+#
+# Usage from PowerShell:
+#   docker compose -f docker-compose.yml -f docker-compose.windows.yml up --build
+#
+# Ensure Ollama Desktop is running on Windows before starting.
+
+services:
+  backend:
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - LLM_PROVIDER=ollama
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

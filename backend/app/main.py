@@ -10,6 +10,7 @@ from app import __version__
 from app.api import chat, conversations, health, tools
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
 from app.rag.retriever import bootstrap_if_needed
 
 
@@ -25,6 +26,13 @@ async def lifespan(_app: FastAPI):
         llm_provider=settings.llm_provider,
         version=__version__,
     )
+
+    try:
+        from app.tools.address_overrides import apply_overrides
+
+        apply_overrides()
+    except Exception as e:
+        log.warning("address_overrides_failed", error=str(e))
 
     try:
         await bootstrap_if_needed()
@@ -46,12 +54,16 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(
+        BodySizeLimitMiddleware, max_bytes=settings.request_max_body_bytes
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     app.include_router(health.router)
