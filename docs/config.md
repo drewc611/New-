@@ -67,6 +67,19 @@ copying `.env.example`).
 | `JWT_ALGORITHMS` | `RS256` | Comma list of acceptable algs |
 | `REQUEST_MAX_BODY_BYTES` | `262144` | Reject larger POST bodies with 413 |
 
+## Okta / OIDC
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OKTA_ENABLED` | `false` | Advertises Okta as the provider in `/api/auth/config` |
+| `OKTA_ISSUER` | empty | Okta auth server base URL; JWKS is auto-derived |
+| `OKTA_CLIENT_ID` | empty | SPA client id (not a secret) |
+| `OKTA_AUDIENCE` | empty | Expected `aud` claim, overrides `JWT_AUDIENCE` |
+| `OKTA_SCOPES` | `openid profile email offline_access` | Space separated |
+
+The SPA receives these via `/api/auth/config` at runtime, and also
+accepts fallbacks in `VITE_OKTA_*` for the very first page load.
+
 ## Frontend
 
 | Variable | Default | Purpose |

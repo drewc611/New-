@@ -1,6 +1,7 @@
-import { MessageSquarePlus, Trash2, MessageCircle } from "lucide-react";
+import { MessageSquarePlus, Trash2, MessageCircle, LogOut } from "lucide-react";
 import { useEffect } from "react";
 import { useChat } from "@/hooks/useChat";
+import { useAuth } from "@/hooks/useAuth";
 import clsx from "clsx";
 
 export function Sidebar() {
@@ -77,10 +78,60 @@ export function Sidebar() {
         </ul>
       </div>
 
+      <UserChip />
+    </aside>
+  );
+}
+
+function UserChip() {
+  const { user, config, logout } = useAuth();
+  if (!user) {
+    return (
       <div className="border-t border-ink-300 p-3 text-xs text-ink-500">
         <div>USPS Address Management Future State</div>
         <div className="opacity-70">v0.1.0 local dev</div>
       </div>
-    </aside>
+    );
+  }
+  const initials = (user.name || user.email || user.sub)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w.charAt(0).toUpperCase())
+    .join("");
+  return (
+    <div className="border-t border-ink-300 p-3">
+      <div className="flex items-center gap-2">
+        <div
+          aria-hidden="true"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-usps-blue text-xs font-semibold text-white"
+        >
+          {initials || "U"}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-ink-900">
+            {user.name || user.email || "Signed in"}
+          </div>
+          <div className="truncate text-xs text-ink-700">{user.email}</div>
+        </div>
+        {config?.enabled && (
+          <button
+            type="button"
+            onClick={logout}
+            aria-label="Sign out"
+            className="rounded-md p-1 text-ink-500 transition hover:bg-ink-50 hover:text-usps-red focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-usps-blue/50"
+          >
+            <LogOut aria-hidden="true" className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      {user.groups.length > 0 && (
+        <div
+          className="mt-2 truncate text-[11px] text-ink-500"
+          title={user.groups.join(", ")}
+        >
+          Groups: {user.groups.join(", ")}
+        </div>
+      )}
+    </div>
   );
 }

@@ -70,6 +70,41 @@ Event types
 | `done` | `{ "message_id": "uuid", "conversation_id": "uuid" }` |
 | `error` | `{ "error": "message" }` |
 
+## Authentication
+
+### GET `/api/auth/config`
+
+Public. Returns the SSO config the SPA uses to initiate login.
+
+```json
+{
+  "enabled": true,
+  "provider": "okta",
+  "issuer": "https://dev-12345.okta.com/oauth2/default",
+  "client_id": "0oaXXXXXXXXXXXXX",
+  "audience": "api://usps-amie",
+  "scopes": ["openid", "profile", "email", "offline_access"],
+  "redirect_path": "/auth/callback"
+}
+```
+
+### GET `/api/auth/me`
+
+Requires `Authorization: Bearer <access_token>`. Returns the
+authenticated user's profile and group claims.
+
+```json
+{
+  "sub": "00uABCDEFGHIJKLMNO",
+  "email": "jane.doe@usps.gov",
+  "name": "Jane Doe",
+  "tenant": "default",
+  "groups": ["amie-users"]
+}
+```
+
+See [docs/okta-sso.md](okta-sso.md) for the full flow.
+
 ## Conversations
 
 | Method | Path | Description |

@@ -52,10 +52,11 @@ async def _verify_token(token: str, settings: Settings) -> dict[str, Any]:
     # (for example the mock/dev path where auth_enabled=False).
     from jose import ExpiredSignatureError, JWTError, jwt
 
-    if not settings.jwt_jwks_url:
+    jwks_url = settings.effective_jwks_url
+    if not jwks_url:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "auth enabled but JWT_JWKS_URL is not configured",
+            "auth enabled but neither JWT_JWKS_URL nor OKTA_ISSUER is configured",
         )
     try:
         header = jwt.get_unverified_header(token)
@@ -65,24 +66,26 @@ async def _verify_token(token: str, settings: Settings) -> dict[str, Any]:
     if not kid:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token missing kid")
 
-    jwks = await _jwks_cache().get(settings.jwt_jwks_url)
+    jwks = await _jwks_cache().get(jwks_url)
     key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
     if not key:
         # refresh once in case of rotation
         _jwks_cache().invalidate()
-        jwks = await _jwks_cache().get(settings.jwt_jwks_url)
+        jwks = await _jwks_cache().get(jwks_url)
         key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
     if not key:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "no matching JWKS key")
 
-    options = {"verify_aud": bool(settings.jwt_audience)}
+    audience = settings.effective_jwt_audience
+    issuer = settings.effective_jwt_issuer
+    options = {"verify_aud": bool(audience)}
     try:
         claims = jwt.decode(
             token,
             key,
             algorithms=settings.jwt_algorithms_list,
-            audience=settings.jwt_audience or None,
-            issuer=settings.jwt_issuer or None,
+            audience=audience or None,
+            issuer=issuer or None,
             options=options,
         )
     except ExpiredSignatureError as e:
@@ -111,9 +114,17 @@ async def get_current_user(
     sub = claims.get("sub")
     if not sub:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token missing sub")
+    # Okta groups ship in the `groups` claim when the access token uses a
+    # Groups claim filter. Default to empty list so downstream RBAC checks
+    # never touch None.
+    groups = claims.get("groups") or []
+    if not isinstance(groups, list):
+        groups = [str(groups)]
     return {
         "sub": sub,
-        "email": claims.get("email", ""),
+        "email": claims.get("email") or claims.get("preferred_username", ""),
+        "name": claims.get("name") or claims.get("preferred_username", ""),
         "tenant": claims.get("tenant") or claims.get("org") or "default",
+        "groups": groups,
         "claims": claims,
     }

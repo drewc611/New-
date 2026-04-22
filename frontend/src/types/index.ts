@@ -73,6 +73,24 @@ export interface Conversation {
   user_id: string;
 }
 
+export interface AuthConfig {
+  enabled: boolean;
+  provider: "okta" | "generic" | "none";
+  issuer: string;
+  client_id: string;
+  audience: string;
+  scopes: string[];
+  redirect_path: string;
+}
+
+export interface MeResponse {
+  sub: string;
+  email: string;
+  name: string;
+  tenant: string;
+  groups: string[];
+}
+
 export interface StreamEvent {
   type: "start" | "tool_call" | "citations" | "token" | "done" | "error";
   conversation_id?: string;
