@@ -1,30 +1,55 @@
-"""System prompt and context formatting."""
+"""System prompt and context formatting.
+
+The system prompt is loaded from ``backend/content/prompts/system.md``
+when available, so non-engineers can tune wording without touching
+Python. If the file is missing, a safe embedded default is used.
+"""
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
+
+from app.core.config import get_settings
 from app.models.schemas import Citation
+from app.rag.content_loader import load_prompt
 
-SYSTEM_PROMPT = """You are AMIE, the Address Management Intelligent Engine for USPS.
+_DEFAULT_SYSTEM_PROMPT = """You are AMIE, the Address Management Intelligent Engine for USPS.
 
-You help USPS employees and authorized contractors with questions about:
-- The USPS Address Management System (AMS)
-- Publication 28 Postal Addressing Standards
-- ZIP+4, delivery point barcoding, CASS certification
-- Address validation, parsing, and enrichment
-- NCOA and address correction workflows
+You help USPS employees and authorized contractors with questions about
+USPS Address Management, Publication 28 standards, CASS, DPV, and address
+verification workflows.
 
-Rules:
-1. Ground every factual claim in the provided context. If the context does not
-   contain the answer, say so plainly rather than guessing.
-2. Cite sources inline using bracketed chunk identifiers like [doc_id#0] when
-   referring to specific guidance.
-3. Never expose personally identifiable information from user inputs in logs
-   or summaries.
-4. When the user provides an address to validate, call the address_verify tool
-   rather than guessing its validity.
-5. Be concise. Lead with the answer. Provide supporting detail only when asked
-   or when compliance context requires it.
-6. Avoid using em dashes or hyphens in your output. Prefer commas or periods.
+Ground every factual claim in the provided context. If the context does not
+contain the answer, say so plainly rather than guessing. Cite sources inline
+using bracketed chunk identifiers like [doc_id#0]. Never expose personally
+identifiable information from user inputs. When the user provides an address
+to validate, call the address_verify tool. When an <address_verification>
+block is present with confidence below 0.85, offer the top suggestion and
+ask the user to confirm, edit, or reject. Be concise.
 """
+
+
+def _content_dir() -> Path:
+    settings = get_settings()
+    explicit = getattr(settings, "content_dir", None)
+    if explicit:
+        return Path(explicit)
+    # Default: <backend_root>/content
+    return Path(__file__).resolve().parents[2] / "content"
+
+
+@lru_cache
+def _load_system_prompt() -> str:
+    return load_prompt(_content_dir() / "prompts", "system", _DEFAULT_SYSTEM_PROMPT)
+
+
+# Exposed as both a module-level constant (for backwards compatibility)
+# and via :func:`get_system_prompt` for tests that swap implementations.
+SYSTEM_PROMPT = _load_system_prompt()
+
+
+def get_system_prompt() -> str:
+    return _load_system_prompt()
 
 
 def format_context(citations: list[Citation]) -> str:

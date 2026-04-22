@@ -1,0 +1,12 @@
+{
+  "title": "How can AMIE help you today?",
+  "subtitle": "Ask a question about USPS addressing standards, or paste an address to validate. AMIE grounds every answer in Publication 28 and AMS documentation.",
+  "samples": [
+    "Explain CASS certification in plain terms",
+    "What does a DPV code of S mean for an address?",
+    "Verify 1600 Pennsylvania Ave, Washington, DC 20500",
+    "What are the secondary address unit designators per Publication 28?",
+    "Verify URB Las Flores, 12 Calle Central, Ponce, PR 00716",
+    "Standardize RR 2 Box 152, Ames, IA 50014"
+  ]
+}

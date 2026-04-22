@@ -15,7 +15,10 @@ from pathlib import Path
 import numpy as np
 from redis.asyncio import Redis
 from redis.commands.search.field import TagField, TextField, VectorField
-from redis.commands.search.indexDefinition import IndexDefinition, IndexType
+try:  # redis-py >= 5.1 uses snake_case, older releases use camelCase
+    from redis.commands.search.index_definition import IndexDefinition, IndexType
+except ImportError:  # pragma: no cover - legacy fallback
+    from redis.commands.search.indexDefinition import IndexDefinition, IndexType
 from redis.commands.search.query import Query
 from redis.exceptions import ResponseError
 from sentence_transformers import SentenceTransformer
@@ -129,12 +132,23 @@ class RedisVectorIndex:
 
 
 async def build_from_knowledge_base(index: RedisVectorIndex, kb_dir: str) -> int:
+    """Index every JSON and Markdown file under ``kb_dir``.
+
+    JSON files are expected to hold a dict or list of dicts with ``id``,
+    ``title``, ``url`` (optional), and ``text`` fields. Markdown files use
+    YAML-lite frontmatter for the same metadata; the body of the file is
+    the text to index. This mixed-source design lets editors add new
+    documents by dropping a ``.md`` file into the directory.
+    """
+    from app.rag.content_loader import read_markdown
+
     kb = Path(kb_dir)
     if not kb.exists():
         raise FileNotFoundError(f"kb dir not found: {kb_dir}")
     all_chunks: list[Chunk] = []
+
     for file in sorted(kb.glob("**/*.json")):
-        with open(file) as f:
+        with open(file, encoding="utf-8") as f:
             docs = json.load(f)
         if isinstance(docs, dict):
             docs = [docs]
@@ -146,5 +160,14 @@ async def build_from_knowledge_base(index: RedisVectorIndex, kb_dir: str) -> int
             if not text:
                 continue
             all_chunks.extend(chunk_text(text, doc_id=doc_id, title=title, url=url))
+
+    for md_path in sorted(kb.glob("**/*.md")):
+        doc = read_markdown(md_path)
+        if not doc.body:
+            continue
+        all_chunks.extend(
+            chunk_text(doc.body, doc_id=doc.id, title=doc.title, url=doc.url)
+        )
+
     await index.ensure_index()
     return await index.index_chunks(all_chunks)

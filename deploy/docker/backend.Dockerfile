@@ -17,6 +17,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY backend/app ./app
 COPY backend/data ./data
+COPY backend/content ./content
 
 RUN useradd --create-home --shell /bin/bash amie \
  && chown -R amie:amie /app

@@ -61,6 +61,18 @@ def test_tools_address_verify(client):
     body = r.json()
     assert body["zip5"] == "75201"
     assert body["state"] == "TX"
+    assert body["street_suffix"] == "ST"
+
+
+def test_tools_address_verify_urbanization(client):
+    r = client.post(
+        "/api/tools/address/verify",
+        json={"address": "URB Las Flores, 12 Calle Central, Ponce, PR 00716"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["urbanization"] == "LAS FLORES"
+    assert body["state"] == "PR"
 
 
 def test_conversation_roundtrip(client, monkeypatch):

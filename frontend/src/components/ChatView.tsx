@@ -1,9 +1,27 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { MessageBubble } from "@/components/MessageBubble";
 import { CitationList } from "@/components/CitationList";
 import { ToolCallList } from "@/components/ToolCallList";
 import { Composer } from "@/components/Composer";
+
+interface SamplesConfig {
+  title: string;
+  subtitle: string;
+  samples: string[];
+}
+
+const FALLBACK_SAMPLES: SamplesConfig = {
+  title: "How can AMIE help you today?",
+  subtitle:
+    "Ask a question about USPS addressing standards, or paste an address to validate.",
+  samples: [
+    "Explain CASS certification in plain terms",
+    "What does a DPV code of S mean for an address?",
+    "Verify 1600 Pennsylvania Ave, Washington, DC 20500",
+    "What are the secondary address unit designators per Publication 28?",
+  ],
+};
 
 export function ChatView() {
   const { messages, streaming, streamText, citations, toolCalls, error } = useChat();
@@ -64,25 +82,35 @@ export function ChatView() {
 }
 
 function EmptyState() {
-  const samples = [
-    "Explain CASS certification in plain terms",
-    "What does a DPV code of S mean for an address?",
-    "Verify 1600 Pennsylvania Ave, Washington, DC 20500",
-    "What are the secondary address unit designators per Publication 28?",
-  ];
   const { send } = useChat();
+  const [config, setConfig] = useState<SamplesConfig>(FALLBACK_SAMPLES);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/samples.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json: SamplesConfig | null) => {
+        if (!cancelled && json && Array.isArray(json.samples)) {
+          setConfig({ ...FALLBACK_SAMPLES, ...json });
+        }
+      })
+      .catch(() => {
+        /* keep fallback */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 py-16 text-center">
       <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-usps-blue text-2xl font-bold text-white">
         A
       </div>
-      <h2 className="text-xl font-semibold text-ink-900">How can AMIE help you today?</h2>
-      <p className="mt-2 max-w-lg text-sm text-ink-500">
-        Ask a question about USPS addressing standards, or paste an address to validate.
-        AMIE grounds every answer in Publication 28 and AMS documentation.
-      </p>
+      <h2 className="text-xl font-semibold text-ink-900">{config.title}</h2>
+      <p className="mt-2 max-w-lg text-sm text-ink-500">{config.subtitle}</p>
       <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-2 sm:grid-cols-2">
-        {samples.map((s) => (
+        {config.samples.map((s) => (
           <button
             key={s}
             onClick={() => send(s)}

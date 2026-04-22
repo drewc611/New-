@@ -86,7 +86,50 @@ Event types
 { "address": "1 Main St, Dallas, TX 75201" }
 ```
 
-Returns an `AddressVerifyResult` with `standardized`, `zip5`, `zip4`, `dpv_code`, and `confidence`.
+Returns an `AddressVerifyResult` with:
+
+- Primary components: `primary_number`, `predirectional`, `street_name`,
+  `street_suffix`, `postdirectional`
+- Secondary components: `secondary_designator`, `secondary_number`
+- Last line: `city`, `state`, `zip5`, `zip4`, `urbanization`
+- `address_type`: `street`, `po_box`, `rural_route`, `highway_contract`,
+  `military`, `general_delivery`, or `unknown`
+- `dpv_code`, `confidence` (0..1), `verified` (bool)
+- `warnings`, `noise_removed` (categories cleaned from the input)
+- `suggestions`: up to three `AddressSuggestion` objects, present when
+  confidence is below 0.9 or the parser had warnings
+
+### POST `/api/tools/address/suggest`
+
+```json
+{ "address": "123 Peachtree Stret, Atlanta, GA 30303", "max_suggestions": 3 }
+```
+
+Returns:
+
+```json
+{
+  "input_address": "123 Peachtree Stret, Atlanta, GA 30303",
+  "noise_removed": [],
+  "suggestions": [
+    {
+      "standardized": "123 PEACHTREE ST\nATLANTA, GA 30303",
+      "confidence": 0.48,
+      "reasons": ["corrected suffix 'STRET' -> 'ST'"],
+      "replaced_tokens": [
+        {"from": "STRET", "to": "ST", "category": "suffix", "score": "0.91"}
+      ],
+      "address_type": "street"
+    }
+  ]
+}
+```
+
+### GET `/api/tools/address/analytics`
+
+Returns an `AddressAnalyticsSummary` with `total`, `verified`,
+`verified_rate`, `average_confidence`, `by_dpv_code`,
+`by_address_type`, `top_warnings`, and the 25 most recent events.
 
 ## Authentication
 

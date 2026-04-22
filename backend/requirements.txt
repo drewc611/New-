@@ -21,6 +21,7 @@ python-json-logger==2.0.7
 
 # Security
 python-jose[cryptography]==3.3.0
+defusedxml==0.7.1
 
 # Dev and test
 pytest==8.3.3
