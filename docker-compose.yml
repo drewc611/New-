@@ -1,18 +1,18 @@
 version: "3.9"
 
 services:
-  redis:
-    image: redis/redis-stack:7.4.0-v0
-    container_name: amie-redis
+  mongo:
+    image: mongo:7.0
+    container_name: amie-mongo
+    command: ["mongod", "--bind_ip_all"]
     ports:
-      - "6379:6379"
-      - "8001:8001"  # RedisInsight UI
+      - "27017:27017"
     volumes:
-      - redis-data:/data
+      - mongo-data:/data/db
     networks:
       - amie-net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -27,14 +27,14 @@ services:
       - .env
     environment:
       - APP_ENV=dev
-      - REDIS_URL=redis://redis:6379/0
+      - MONGO_URI=mongodb://mongo:27017
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
       - backend-data:/app/data-runtime
     depends_on:
-      redis:
+      mongo:
         condition: service_healthy
     networks:
       - amie-net
@@ -76,7 +76,7 @@ services:
       - amie-net
 
 volumes:
-  redis-data:
+  mongo-data:
   backend-data:
   ollama-data:
 

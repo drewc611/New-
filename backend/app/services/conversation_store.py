@@ -1,83 +1,114 @@
-"""Redis conversation store.
+"""MongoDB conversation store.
 
-Uses standard Redis hashes keyed by prefix + conversation id for each
-conversation, plus a sorted set per user for recent conversation listings.
+Schema (collection ``conversations``):
 
-Keys:
-  amie:conv:{id}            HASH with `json` field containing the Conversation JSON
-  amie:user:{user_id}:convs ZSET of conversation ids scored by updated_at epoch
+```
+{
+  "_id": "<uuid>",
+  "title": "...",
+  "user_id": "<sub>",
+  "tenant": "default",
+  "created_at": ISODate,
+  "updated_at": ISODate,
+  "messages": [ {id, role, content, created_at}, ... ]
+}
+```
+
+Required index: ``{ user_id: 1, updated_at: -1 }`` for the
+"list the current user's recent conversations" query.
 """
 from __future__ import annotations
 
 from functools import lru_cache
 
-from redis.asyncio import Redis
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 
 from app.core.config import get_settings
-from app.core.redis_client import get_redis
+from app.core.mongo_client import get_mongo_db
 from app.models.schemas import Conversation, ConversationSummary, Message
 
 
-class RedisConversationStore:
-    def __init__(self, client: Redis, prefix: str) -> None:
-        self._client = client
-        self._prefix = prefix
+class MongoConversationStore:
+    def __init__(self, db: AsyncIOMotorDatabase, collection_name: str) -> None:
+        self._collection: AsyncIOMotorCollection = db[collection_name]
+        self._index_ensured = False
 
-    def _conv_key(self, conversation_id: str) -> str:
-        return f"{self._prefix}{conversation_id}"
+    async def _ensure_indexes(self) -> None:
+        if self._index_ensured:
+            return
+        try:
+            await self._collection.create_index(
+                [("user_id", 1), ("updated_at", -1)], name="user_recent"
+            )
+            self._index_ensured = True
+        except Exception:
+            # Indexes are best-effort; tests against mongomock may not need them.
+            self._index_ensured = True
 
-    def _user_key(self, user_id: str) -> str:
-        return f"amie:user:{user_id}:convs"
+    @staticmethod
+    def _to_document(conv: Conversation) -> dict:
+        data = conv.model_dump(mode="python")
+        data["_id"] = data.pop("id")
+        return data
+
+    @staticmethod
+    def _from_document(doc: dict) -> Conversation:
+        data = dict(doc)
+        data["id"] = data.pop("_id")
+        return Conversation.model_validate(data)
 
     async def get(self, conversation_id: str) -> Conversation | None:
-        raw = await self._client.hget(self._conv_key(conversation_id), "json")
-        if not raw:
-            return None
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
-        return Conversation.model_validate_json(raw)
+        await self._ensure_indexes()
+        doc = await self._collection.find_one({"_id": conversation_id})
+        return self._from_document(doc) if doc else None
 
     async def put(self, conversation: Conversation) -> None:
-        key = self._conv_key(conversation.id)
-        payload = conversation.model_dump_json()
-        score = conversation.updated_at.timestamp()
-        pipe = self._client.pipeline(transaction=False)
-        pipe.hset(key, "json", payload)
-        pipe.zadd(self._user_key(conversation.user_id), {conversation.id: score})
-        await pipe.execute()
+        await self._ensure_indexes()
+        doc = self._to_document(conversation)
+        await self._collection.replace_one(
+            {"_id": conversation.id}, doc, upsert=True
+        )
 
-    async def list_for_user(self, user_id: str, limit: int = 50) -> list[ConversationSummary]:
-        ids = await self._client.zrevrange(self._user_key(user_id), 0, limit - 1)
-        ids = [i.decode() if isinstance(i, bytes) else i for i in ids]
+    async def list_for_user(
+        self, user_id: str, limit: int = 50
+    ) -> list[ConversationSummary]:
+        await self._ensure_indexes()
+        cursor = (
+            self._collection.find(
+                {"user_id": user_id},
+                projection={
+                    "_id": 1,
+                    "title": 1,
+                    "created_at": 1,
+                    "updated_at": 1,
+                    "messages": 1,
+                },
+            )
+            .sort("updated_at", -1)
+            .limit(limit)
+        )
         summaries: list[ConversationSummary] = []
-        for cid in ids:
-            conv = await self.get(cid)
-            if not conv:
-                continue
+        async for doc in cursor:
             summaries.append(
                 ConversationSummary(
-                    id=conv.id,
-                    title=conv.title,
-                    created_at=conv.created_at,
-                    updated_at=conv.updated_at,
-                    message_count=len(conv.messages),
+                    id=doc["_id"],
+                    title=doc.get("title", "New conversation"),
+                    created_at=doc["created_at"],
+                    updated_at=doc["updated_at"],
+                    message_count=len(doc.get("messages", [])),
                 )
             )
         return summaries
 
     async def delete(self, conversation_id: str) -> None:
-        conv = await self.get(conversation_id)
-        pipe = self._client.pipeline(transaction=False)
-        pipe.delete(self._conv_key(conversation_id))
-        if conv:
-            pipe.zrem(self._user_key(conv.user_id), conversation_id)
-        await pipe.execute()
+        await self._ensure_indexes()
+        await self._collection.delete_one({"_id": conversation_id})
 
 
 @lru_cache
-def get_conversation_store() -> RedisConversationStore:
+def get_conversation_store() -> MongoConversationStore:
     s = get_settings()
-    return RedisConversationStore(get_redis(), s.redis_convo_prefix)
+    return MongoConversationStore(get_mongo_db(), s.mongo_conversations_collection)
 
 
 def append_message(conv: Conversation, msg: Message) -> Conversation:

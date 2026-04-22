@@ -8,16 +8,16 @@ def test_health_live(client):
     assert r.json() == {"live": True}
 
 
-def test_health_returns_redis_flag(client):
+def test_health_returns_db_flag(client):
     r = client.get("/api/health")
     assert r.status_code == 200
     body = r.json()
-    assert "redis_ok" in body
+    assert "db_ok" in body
     assert body["llm_provider"] == "mock"
 
 
 def test_chat_creates_conversation(client, monkeypatch):
-    # Bypass retrieval for tests (fakeredis has no RediSearch)
+    # Bypass retrieval for tests (mongomock-motor does not load the embedding model)
     from app.services import orchestrator as o
 
     async def _no_retrieve(_q, **_kw):

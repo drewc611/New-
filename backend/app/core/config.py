@@ -41,11 +41,18 @@ class Settings(BaseSettings):
     content_dir: str = "/app/content"
     retrieval_top_k: int = 5
 
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
-    redis_vector_index: str = "amie:vectors"
-    redis_convo_prefix: str = "amie:conv:"
-    redis_cache_ttl_seconds: int = 3600
+    # MongoDB
+    mongo_uri: str = "mongodb://localhost:27017"
+    mongo_database: str = "amie"
+    mongo_conversations_collection: str = "conversations"
+    mongo_vectors_collection: str = "vectors"
+    mongo_address_events_collection: str = "address_events"
+    mongo_address_events_capped_size_mb: int = 64
+    mongo_address_events_capped_max_docs: int = 50_000
+    # When set, use Atlas Vector Search (requires a vectorSearch index on
+    # the vectors collection). When false, use in-process cosine similarity.
+    mongo_use_atlas_vector_search: bool = False
+    mongo_atlas_vector_index_name: str = "vector_index"
 
     # Address verification
     address_verifier: Literal["mock", "usps_api"] = "mock"

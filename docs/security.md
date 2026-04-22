@@ -18,9 +18,9 @@ When `networkPolicy.enabled=true` (default) the chart installs:
 | Policy | Effect |
 |---|---|
 | Default deny | All AMIE pods deny ingress and egress unless another rule allows it |
-| Backend | Accepts from frontend and ingress namespace on 8000, egresses to Redis 6379, Ollama 11434 (if enabled), DNS, and external HTTPS (0.0.0.0/0 except RFC1918) for Anthropic and USPS API |
+| Backend | Accepts from frontend and ingress namespace on 8000, egresses to MongoDB 27017, Ollama 11434 (if enabled), DNS, and external HTTPS (0.0.0.0/0 except RFC1918) for Anthropic and USPS API |
 | Frontend | Accepts from ingress namespace on 8080, egresses only to the backend and DNS |
-| Redis | Accepts only from backend on 6379 |
+| MongoDB | Accepts only from backend on 27017 |
 
 Tighten the backend HTTPS egress in production by replacing the `ipBlock` rule with specific IP ranges for the Anthropic and USPS endpoints.
 
@@ -32,16 +32,17 @@ Secrets are provisioned by the chart:
 |---|---|
 | `{release}-llm` | `ANTHROPIC_API_KEY` (only when `llm.provider=anthropic`) |
 | `{release}-usps` | `USPS_API_USER_ID`, `USPS_API_PASSWORD` (only when `addressVerifier.provider=usps_api`) |
-| `{release}-redis` | `REDIS_PASSWORD` (generated if not supplied) |
+| `{release}-mongo` | `MONGO_ROOT_PASSWORD` (generated if not supplied) |
 
-Bring your own secrets by setting `llm.existingSecretName`, `addressVerifier.uspsApi.existingSecretName`, or `redis.existingSecretName`. This is the recommended pattern for production where secrets come from External Secrets Operator, Sealed Secrets, Vault CSI, or similar.
+Bring your own secrets by setting `llm.existingSecretName`, `addressVerifier.uspsApi.existingSecretName`, or `mongo.existingSecretName`. This is the recommended pattern for production where secrets come from External Secrets Operator, Sealed Secrets, Vault CSI, or similar.
 
 ## Data Protection
 
 | Data | Storage | Encryption |
 |---|---|---|
-| Vector chunks | Redis hashes | Encryption at rest depends on PV storage class. Use a CSI driver with encryption enabled (for example Portworx, EBS CSI with KMS, Azure Disk CSI with customer-managed keys). |
-| Conversations | Redis hashes + ZSET | Same as above. |
+| Vector chunks | MongoDB `vectors` collection | Encryption at rest depends on PV storage class (self-hosted) or Atlas encryption settings. Use a CSI driver with encryption enabled (for example Portworx, EBS CSI with KMS, Azure Disk CSI with customer-managed keys). Atlas supports customer-managed keys via AWS KMS / Azure Key Vault / GCP KMS. |
+| Conversations | MongoDB `conversations` collection | Same as above. |
+| Analytics events | MongoDB `address_events` capped collection | Same as above. Capped collections self-trim at the configured size ceiling. |
 | Logs | stdout, picked up by cluster log stack | Follow cluster log stack encryption. |
 
 ## Authentication
@@ -69,6 +70,6 @@ Production deployments set `auth.enabled=true` and supply `auth.jwtIssuer` for y
 | Risk | Mitigation |
 |---|---|
 | LLM hallucination | Retrieval grounding with explicit citation, optional human review for sensitive output |
-| Redis data loss | Enable persistence, use a PV with snapshot capability, or an external managed Redis |
-| Single Redis replica | The chart deploys one Redis pod. For HA, use Redis Enterprise or Redis Sentinel/Cluster via a dedicated chart and disable the bundled StatefulSet |
+| MongoDB data loss | Enable persistence, use a PV with snapshot capability, or point at MongoDB Atlas with cross-region backup |
+| Single MongoDB replica | The chart deploys one mongod pod. For HA, use a replica set via the official MongoDB Kubernetes Operator, or MongoDB Atlas, and disable the bundled StatefulSet |
 | Prompt injection via retrieved content | Content review on corpus ingest, output filtering, system prompt rules |

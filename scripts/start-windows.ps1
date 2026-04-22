@@ -13,7 +13,7 @@
 param(
     [string]$OllamaModel = "llama3.1:8b",
     [switch]$SkipOllama,
-    [switch]$SkipRedis,
+    [switch]$SkipMongo,
     [switch]$SkipFrontend
 )
 
@@ -45,16 +45,17 @@ if (-not $SkipOllama) {
     & ollama pull $OllamaModel | Out-Host
 }
 
-# 3. Redis Stack via Docker Desktop
-if (-not $SkipRedis) {
-    Write-Step "Starting Redis Stack (requires Docker Desktop)"
-    $existing = docker ps -a --filter "name=amie-redis" --format "{{.Names}}"
-    if ($existing -eq "amie-redis") {
-        docker start amie-redis | Out-Null
+# 3. MongoDB via Docker Desktop
+if (-not $SkipMongo) {
+    Write-Step "Starting MongoDB (requires Docker Desktop)"
+    $existing = docker ps -a --filter "name=amie-mongo" --format "{{.Names}}"
+    if ($existing -eq "amie-mongo") {
+        docker start amie-mongo | Out-Null
     } else {
-        docker run -d --name amie-redis `
-            -p 6379:6379 -p 8001:8001 `
-            redis/redis-stack:7.4.0-v0 | Out-Null
+        docker run -d --name amie-mongo `
+            -p 27017:27017 `
+            -v amie-mongo-data:/data/db `
+            mongo:7.0 | Out-Null
     }
 }
 
@@ -92,6 +93,6 @@ if (-not $SkipFrontend) {
 
 Write-Host ""
 Write-Host "AMIE is starting up:" -ForegroundColor Green
-Write-Host "  Backend:  http://localhost:8000/docs"
-Write-Host "  Frontend: http://localhost:5173"
-Write-Host "  Redis UI: http://localhost:8001"
+Write-Host "  Backend:   http://localhost:8000/docs"
+Write-Host "  Frontend:  http://localhost:5173"
+Write-Host "  MongoDB:   mongodb://localhost:27017 (use Compass to browse)"

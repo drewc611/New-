@@ -1,11 +1,29 @@
-"""Redis Stack vector indexer using RediSearch HNSW.
+"""MongoDB vector indexer.
 
-Index schema:
-  HASH keys of the form amie:vec:{chunk_id} with fields:
-    text (TEXT), doc_id (TAG), title (TEXT), url (TEXT), vector (VECTOR)
+Supports two retrieval backends:
 
-The index is created on boot if it does not exist, then populated from
-JSON files in the knowledge base directory.
+1. **In-process cosine similarity** (default). Loads all document
+   vectors from the ``vectors`` collection once per query, computes
+   cosine similarity with numpy, returns the top K. Fast and
+   predictable for knowledge bases up to roughly 50k chunks; requires
+   no special MongoDB feature.
+2. **Atlas Vector Search** (when ``mongo_use_atlas_vector_search`` is
+   True). Runs an aggregation pipeline with ``$vectorSearch``. Requires
+   an Atlas cluster with a configured vector search index; the index
+   name is taken from ``mongo_atlas_vector_index_name``.
+
+Schema (collection ``vectors``):
+
+```
+{
+  "_id": "<chunk_id>",
+  "doc_id": "pub28-sec-21",
+  "title": "...",
+  "url": "...",
+  "text": "...",
+  "vector": [0.1, 0.2, ...]
+}
+```
 """
 from __future__ import annotations
 
@@ -13,14 +31,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from redis.asyncio import Redis
-from redis.commands.search.field import TagField, TextField, VectorField
-try:  # redis-py >= 5.1 uses snake_case, older releases use camelCase
-    from redis.commands.search.index_definition import IndexDefinition, IndexType
-except ImportError:  # pragma: no cover - legacy fallback
-    from redis.commands.search.indexDefinition import IndexDefinition, IndexType
-from redis.commands.search.query import Query
-from redis.exceptions import ResponseError
+from motor.motor_asyncio import AsyncIOMotorCollection, AsyncIOMotorDatabase
 from sentence_transformers import SentenceTransformer
 
 from app.core.logging import get_logger
@@ -29,16 +40,24 @@ from app.rag.chunking import Chunk, chunk_text
 
 log = get_logger(__name__)
 
-_VEC_PREFIX = "amie:vec:"
 
-
-class RedisVectorIndex:
-    def __init__(self, client: Redis, index_name: str, embedding_model: str, dim: int) -> None:
-        self._client = client
-        self._index = index_name
+class MongoVectorIndex:
+    def __init__(
+        self,
+        db: AsyncIOMotorDatabase,
+        collection_name: str,
+        embedding_model: str,
+        dim: int,
+        use_atlas_vector_search: bool = False,
+        atlas_index_name: str = "vector_index",
+    ) -> None:
+        self._collection: AsyncIOMotorCollection = db[collection_name]
         self._model_name = embedding_model
         self._dim = dim
         self._model: SentenceTransformer | None = None
+        self._use_atlas = use_atlas_vector_search
+        self._atlas_index_name = atlas_index_name
+        self._index_ensured = False
 
     @property
     def model(self) -> SentenceTransformer:
@@ -48,98 +67,145 @@ class RedisVectorIndex:
         return self._model
 
     def _embed(self, texts: list[str]) -> np.ndarray:
-        vecs = self.model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
+        vecs = self.model.encode(
+            texts, normalize_embeddings=True, show_progress_bar=False
+        )
         return np.asarray(vecs, dtype=np.float32)
 
     async def ensure_index(self) -> None:
-        try:
-            await self._client.ft(self._index).info()
+        if self._index_ensured:
             return
-        except ResponseError:
-            pass
+        try:
+            await self._collection.create_index([("doc_id", 1)], name="doc_id_idx")
+        except Exception as e:
+            log.debug("vector_index_create_failed", error=str(e))
+        self._index_ensured = True
 
-        schema = (
-            TextField("text"),
-            TagField("doc_id"),
-            TextField("title"),
-            TextField("url"),
-            VectorField(
-                "vector",
-                "HNSW",
-                {
-                    "TYPE": "FLOAT32",
-                    "DIM": self._dim,
-                    "DISTANCE_METRIC": "COSINE",
-                    "M": 16,
-                    "EF_CONSTRUCTION": 200,
-                },
-            ),
-        )
-        definition = IndexDefinition(prefix=[_VEC_PREFIX], index_type=IndexType.HASH)
-        await self._client.ft(self._index).create_index(fields=schema, definition=definition)
-        log.info("vector_index_created", name=self._index, dim=self._dim)
+    async def count(self) -> int:
+        try:
+            return await self._collection.count_documents({})
+        except Exception:
+            return 0
 
     async def index_chunks(self, chunks: list[Chunk]) -> int:
         if not chunks:
             return 0
         vectors = self._embed([c.text for c in chunks])
-        pipe = self._client.pipeline(transaction=False)
+        ops = []
         for c, vec in zip(chunks, vectors, strict=False):
-            key = f"{_VEC_PREFIX}{c.chunk_id}"
-            pipe.hset(
-                key,
-                mapping={
-                    "text": c.text,
+            ops.append(
+                {
+                    "_id": c.chunk_id,
                     "doc_id": c.doc_id,
                     "title": c.title,
                     "url": c.url or "",
-                    "vector": vec.tobytes(),
-                },
+                    "text": c.text,
+                    "vector": vec.tolist(),
+                }
             )
-        await pipe.execute()
-        log.info("chunks_indexed", count=len(chunks))
-        return len(chunks)
+        # Upsert one by one to preserve idempotence under re-index calls.
+        for doc in ops:
+            await self._collection.replace_one(
+                {"_id": doc["_id"]}, doc, upsert=True
+            )
+        log.info("chunks_indexed", count=len(ops))
+        return len(ops)
 
     async def search(self, query: str, top_k: int = 5) -> list[Citation]:
-        vec = self._embed([query])[0].tobytes()
-        q = (
-            Query(f"*=>[KNN {top_k} @vector $BLOB AS score]")
-            .sort_by("score")
-            .return_fields("text", "doc_id", "title", "url", "score")
-            .paging(0, top_k)
-            .dialect(2)
-        )
-        result = await self._client.ft(self._index).search(q, query_params={"BLOB": vec})
+        query_vec = self._embed([query])[0]
+        if self._use_atlas:
+            return await self._search_atlas(query_vec.tolist(), top_k)
+        return await self._search_in_process(query_vec, top_k)
 
+    async def _search_atlas(
+        self, query_vec: list[float], top_k: int
+    ) -> list[Citation]:
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": self._atlas_index_name,
+                    "path": "vector",
+                    "queryVector": query_vec,
+                    "numCandidates": max(top_k * 10, 50),
+                    "limit": top_k,
+                }
+            },
+            {
+                "$project": {
+                    "_id": 1,
+                    "doc_id": 1,
+                    "title": 1,
+                    "url": 1,
+                    "text": 1,
+                    "score": {"$meta": "vectorSearchScore"},
+                }
+            },
+        ]
         citations: list[Citation] = []
-        for doc in result.docs:
-            chunk_id = doc.id.removeprefix(_VEC_PREFIX)
-            # RediSearch returns COSINE distance (lower is closer). Convert to similarity.
-            distance = float(getattr(doc, "score", 0.0))
-            similarity = max(0.0, 1.0 - distance)
-            text = (doc.text if isinstance(doc.text, str) else doc.text.decode("utf-8", errors="ignore")) if hasattr(doc, "text") else ""
+        async for doc in self._collection.aggregate(pipeline):
             citations.append(
                 Citation(
-                    chunk_id=chunk_id,
-                    doc_id=getattr(doc, "doc_id", "") or "",
-                    title=getattr(doc, "title", "") or chunk_id,
-                    snippet=text[:400],
-                    score=similarity,
-                    url=getattr(doc, "url", None) or None,
+                    chunk_id=doc["_id"],
+                    doc_id=doc.get("doc_id", ""),
+                    title=doc.get("title") or doc["_id"],
+                    snippet=(doc.get("text") or "")[:400],
+                    score=float(doc.get("score", 0.0)),
+                    url=doc.get("url") or None,
+                )
+            )
+        return citations
+
+    async def _search_in_process(
+        self, query_vec: np.ndarray, top_k: int
+    ) -> list[Citation]:
+        ids: list[str] = []
+        doc_ids: list[str] = []
+        titles: list[str] = []
+        urls: list[str] = []
+        snippets: list[str] = []
+        vectors: list[list[float]] = []
+
+        cursor = self._collection.find(
+            {}, projection={"doc_id": 1, "title": 1, "url": 1, "text": 1, "vector": 1}
+        )
+        async for doc in cursor:
+            vec = doc.get("vector")
+            if not vec:
+                continue
+            ids.append(doc["_id"])
+            doc_ids.append(doc.get("doc_id", ""))
+            titles.append(doc.get("title") or doc["_id"])
+            urls.append(doc.get("url") or "")
+            snippets.append((doc.get("text") or "")[:400])
+            vectors.append(vec)
+
+        if not vectors:
+            return []
+
+        matrix = np.asarray(vectors, dtype=np.float32)
+        # Query and stored vectors are already L2-normalized.
+        scores = matrix @ query_vec.astype(np.float32)
+        k = min(top_k, len(scores))
+        # Partial sort: top-k by descending score.
+        top_idx = np.argpartition(-scores, kth=k - 1)[:k]
+        top_idx = top_idx[np.argsort(-scores[top_idx])]
+        citations: list[Citation] = []
+        for i in top_idx:
+            citations.append(
+                Citation(
+                    chunk_id=ids[i],
+                    doc_id=doc_ids[i],
+                    title=titles[i],
+                    snippet=snippets[i],
+                    score=float(scores[i]),
+                    url=urls[i] or None,
                 )
             )
         return citations
 
 
-async def build_from_knowledge_base(index: RedisVectorIndex, kb_dir: str) -> int:
-    """Index every JSON and Markdown file under ``kb_dir``.
-
-    JSON files are expected to hold a dict or list of dicts with ``id``,
-    ``title``, ``url`` (optional), and ``text`` fields. Markdown files use
-    YAML-lite frontmatter for the same metadata; the body of the file is
-    the text to index. This mixed-source design lets editors add new
-    documents by dropping a ``.md`` file into the directory.
-    """
+async def build_from_knowledge_base(index: MongoVectorIndex, kb_dir: str) -> int:
+    """Index every JSON and Markdown file under ``kb_dir``."""
     from app.rag.content_loader import read_markdown
 
     kb = Path(kb_dir)

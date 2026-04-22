@@ -1,7 +1,7 @@
 """Retrieval facade.
 
-Wraps :class:`RedisVectorIndex` with a cached singleton and helper entry
-points used by the orchestrator and FastAPI lifespan hook.
+Wraps :class:`MongoVectorIndex` with a cached singleton and helper
+entry points used by the orchestrator and FastAPI lifespan hook.
 """
 from __future__ import annotations
 
@@ -9,54 +9,38 @@ from functools import lru_cache
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.core.redis_client import get_redis
+from app.core.mongo_client import get_mongo_db
 from app.models.schemas import Citation
-from app.rag.indexer import RedisVectorIndex, build_from_knowledge_base
+from app.rag.indexer import MongoVectorIndex, build_from_knowledge_base
 
 log = get_logger(__name__)
 
 
 @lru_cache
-def _index_instance() -> RedisVectorIndex:
+def _index_instance() -> MongoVectorIndex:
     s = get_settings()
-    return RedisVectorIndex(
-        client=get_redis(),
-        index_name=s.redis_vector_index,
+    return MongoVectorIndex(
+        db=get_mongo_db(),
+        collection_name=s.mongo_vectors_collection,
         embedding_model=s.embedding_model,
         dim=s.embedding_dim,
+        use_atlas_vector_search=s.mongo_use_atlas_vector_search,
+        atlas_index_name=s.mongo_atlas_vector_index_name,
     )
 
 
-async def _index_is_populated(index: RedisVectorIndex) -> bool:
-    try:
-        info = await index._client.ft(index._index).info()
-    except Exception:
-        return False
-    if isinstance(info, dict):
-        count = info.get("num_docs") or info.get("numDocs") or 0
-    else:
-        count = 0
-        for i, item in enumerate(info):
-            if isinstance(item, (bytes, str)) and str(item) in ("num_docs", "numDocs"):
-                count = info[i + 1]
-                break
-    try:
-        return int(count) > 0
-    except (TypeError, ValueError):
-        return False
-
-
 async def bootstrap_if_needed() -> None:
-    """Ensure the vector index exists and is populated from the KB on boot."""
+    """Ensure the vectors collection exists and is populated from the KB."""
     s = get_settings()
     index = _index_instance()
     await index.ensure_index()
-    if await _index_is_populated(index):
-        log.info("vector_index_ready")
+    count = await index.count()
+    if count > 0:
+        log.info("vector_index_ready", count=count)
         return
     log.info("bootstrapping_vector_index", kb_path=s.kb_path)
-    count = await build_from_knowledge_base(index, s.kb_path)
-    log.info("vector_index_bootstrap_complete", chunks_indexed=count)
+    indexed = await build_from_knowledge_base(index, s.kb_path)
+    log.info("vector_index_bootstrap_complete", chunks_indexed=indexed)
 
 
 async def retrieve(query: str, top_k: int | None = None) -> list[Citation]:

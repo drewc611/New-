@@ -155,5 +155,5 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded", "down"] = "ok"
     version: str
     llm_provider: str
-    redis_ok: bool
+    db_ok: bool
     env: str

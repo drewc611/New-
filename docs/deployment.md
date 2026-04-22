@@ -129,10 +129,10 @@ kubectl exec -n amie deploy/amie-ollama -- ollama pull llama3.1
 
 ## Updating the Knowledge Base
 
-1. Edit or add files under `backend/data/knowledge_base/*.json`.
+1. Edit or add files under `backend/data/knowledge_base/*.json` or `*.md`.
 2. Rebuild and push the backend image with a new tag.
 3. `helm upgrade ... --set backend.image.tag=NEWTAG`
-4. The new pods will detect an existing index in Redis and skip bootstrap. To force a rebuild, run `scripts/build-index.sh` inside one backend pod.
+4. The new pods will detect an existing `vectors` collection in MongoDB and skip bootstrap. To force a rebuild, run `scripts/build-index.sh` inside one backend pod.
 
 ## OpenShift Notes
 
@@ -165,9 +165,9 @@ kubectl delete namespace amie
 
 ## Production Checklist
 
-* [ ] External secrets (`llm.existingSecretName`, `addressVerifier.uspsApi.existingSecretName`, `redis.existingSecretName`)
+* [ ] External secrets (`llm.existingSecretName`, `addressVerifier.uspsApi.existingSecretName`, `mongo.existingSecretName`)
 * [ ] TLS on ingress via cert-manager or your CA
-* [ ] Backup the Redis PV (snapshots or managed service)
+* [ ] Backup the MongoDB PV (snapshots, a replica-set with delayed member, or MongoDB Atlas with cross-region backup)
 * [ ] Alerting on liveness and readiness probe failures
 * [ ] Log forwarding to your SIEM
 * [ ] Network policies enforced by a CNI that supports them (Calico, Cilium, etc.)

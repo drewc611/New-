@@ -28,7 +28,7 @@ What the script does:
 
 1. Copies `.env.example` to `.env` if missing.
 2. Verifies Ollama Desktop is reachable, then `ollama pull llama3.1:8b`.
-3. Starts `amie-redis` (Redis Stack) in Docker Desktop.
+3. Starts `amie-mongo` (MongoDB 7.0) in Docker Desktop.
 4. Creates a Python venv under `backend\.venv` and installs requirements.
 5. Launches the FastAPI backend on <http://localhost:8000>.
 6. Launches the Vite frontend on <http://localhost:5173>.
@@ -36,7 +36,7 @@ What the script does:
 Flags:
 
 - `-SkipOllama` skip the Ollama pull (if you already pulled the model)
-- `-SkipRedis` skip the Docker step (if you have Redis running elsewhere)
+- `-SkipMongo` skip the Docker step (if you have MongoDB running elsewhere)
 - `-SkipFrontend` run backend only
 - `-OllamaModel llama3.2:3b` use a different model
 
@@ -45,7 +45,7 @@ Flags:
 ```powershell
 # 1. One-time
 Copy-Item .env.example .env
-docker run -d --name amie-redis -p 6379:6379 -p 8001:8001 redis/redis-stack:7.4.0-v0
+docker run -d --name amie-mongo -p 27017:27017 -v amie-mongo-data:/data/db mongo:7.0
 
 # 2. Pull a model
 ollama pull llama3.1:8b

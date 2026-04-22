@@ -37,14 +37,25 @@ copying `.env.example`).
 | `CONTENT_DIR` | `/app/content` | Prompts and standards overrides |
 | `RETRIEVAL_TOP_K` | `5` | Citations returned per query |
 
-## Redis
+## MongoDB
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis Stack endpoint |
-| `REDIS_VECTOR_INDEX` | `amie:vectors` | RediSearch index name |
-| `REDIS_CONVO_PREFIX` | `amie:conv:` | Hash prefix for conversations |
-| `REDIS_CACHE_TTL_SECONDS` | `3600` | General TTL knob |
+| `MONGO_URI` | `mongodb://localhost:27017` | Mongo connection string; use `mongodb+srv://...` for Atlas |
+| `MONGO_DATABASE` | `amie` | Database name |
+| `MONGO_CONVERSATIONS_COLLECTION` | `conversations` | Chat history |
+| `MONGO_VECTORS_COLLECTION` | `vectors` | KB chunks + embeddings |
+| `MONGO_ADDRESS_EVENTS_COLLECTION` | `address_events` | Capped collection for analytics |
+| `MONGO_ADDRESS_EVENTS_CAPPED_SIZE_MB` | `64` | Capped size ceiling |
+| `MONGO_ADDRESS_EVENTS_CAPPED_MAX_DOCS` | `50000` | Capped document ceiling |
+| `MONGO_USE_ATLAS_VECTOR_SEARCH` | `false` | When true, use `$vectorSearch` against Atlas |
+| `MONGO_ATLAS_VECTOR_INDEX_NAME` | `vector_index` | Atlas vector index name |
+
+Self-hosted MongoDB (community edition, 5.0+) works for the default
+in-process cosine similarity path. For Atlas Vector Search, the
+deployment must be MongoDB Atlas with an index of type
+`vectorSearch` defined on the `vector` field. See
+[docs/architecture.md](architecture.md#vector-search) for details.
 
 ## Address Verification
 

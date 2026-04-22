@@ -22,7 +22,7 @@ from app.rag.prompts import SYSTEM_PROMPT, build_user_turn_with_context
 from app.rag.retriever import retrieve
 from app.services.address_analytics import get_analytics
 from app.services.conversation_store import (
-    RedisConversationStore,
+    MongoConversationStore,
     append_message,
     get_conversation_store,
 )
@@ -86,7 +86,7 @@ class ChatOrchestrator:
     def __init__(
         self,
         llm: LLMProvider | None = None,
-        store: RedisConversationStore | None = None,
+        store: MongoConversationStore | None = None,
     ) -> None:
         self._llm = llm or get_llm_provider()
         self._store = store or get_conversation_store()

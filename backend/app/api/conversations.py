@@ -5,19 +5,19 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user
 from app.models.schemas import Conversation, ConversationSummary
-from app.services.conversation_store import RedisConversationStore, get_conversation_store
+from app.services.conversation_store import MongoConversationStore, get_conversation_store
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 
-def _store() -> RedisConversationStore:
+def _store() -> MongoConversationStore:
     return get_conversation_store()
 
 
 @router.get("", response_model=list[ConversationSummary])
 async def list_conversations(
     user: dict = Depends(get_current_user),
-    store: RedisConversationStore = Depends(_store),
+    store: MongoConversationStore = Depends(_store),
 ) -> list[ConversationSummary]:
     return await store.list_for_user(user["sub"])
 
@@ -26,7 +26,7 @@ async def list_conversations(
 async def get_conversation(
     conversation_id: str,
     user: dict = Depends(get_current_user),
-    store: RedisConversationStore = Depends(_store),
+    store: MongoConversationStore = Depends(_store),
 ) -> Conversation:
     conv = await store.get(conversation_id)
     if not conv or conv.user_id != user["sub"]:
@@ -38,7 +38,7 @@ async def get_conversation(
 async def delete_conversation(
     conversation_id: str,
     user: dict = Depends(get_current_user),
-    store: RedisConversationStore = Depends(_store),
+    store: MongoConversationStore = Depends(_store),
 ) -> dict:
     conv = await store.get(conversation_id)
     if not conv or conv.user_id != user["sub"]:

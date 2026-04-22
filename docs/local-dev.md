@@ -23,9 +23,9 @@ Open:
 * Frontend: http://localhost:5173
 * Backend: http://localhost:8000
 * API docs: http://localhost:8000/docs
-* Redis Stack UI (RedisInsight): http://localhost:8001
+* MongoDB: mongodb://localhost:27017 (browse with MongoDB Compass)
 
-The backend boots with an empty Redis, then builds the vector index from `backend/data/knowledge_base/*.json` on first startup. The embedding model (`all-MiniLM-L6-v2`) is about 90 MB and is cached in the backend volume after first run.
+The backend boots with an empty MongoDB, then builds the `vectors` collection from `backend/data/knowledge_base/*.json` and `*.md` on first startup. The embedding model (`all-MiniLM-L6-v2`) is about 90 MB and is cached in the backend volume after first run.
 
 ## Offline Profile (with Ollama)
 
@@ -43,10 +43,10 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-# Start a local Redis Stack first
-docker run -d --rm -p 6379:6379 -p 8001:8001 redis/redis-stack:7.4.0-v0
+# Start a local MongoDB first
+docker run -d --rm -p 27017:27017 -v amie-mongo-data:/data/db mongo:7.0
 export $(grep -v '^#' ../.env | xargs)
-export REDIS_URL=redis://localhost:6379/0
+export MONGO_URI=mongodb://localhost:27017
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -65,7 +65,7 @@ cd backend
 pytest -v
 ```
 
-Tests use `fakeredis` so there is no external dependency.
+Tests use `mongomock-motor` so there is no external dependency.
 
 ## Rebuilding the Index
 
@@ -87,5 +87,5 @@ kubectl port-forward -n amie svc/amie-frontend 8080:80
 ## Common Issues
 
 * Slow first response: the embedding model downloads on first use.
-* Empty citations: confirm the vector index bootstrapped (`kubectl logs deploy/amie-backend` looking for `bootstrapping_vector_index` and `chunks_indexed`).
+* Empty citations: confirm the vector collection bootstrapped (`kubectl logs deploy/amie-backend` looking for `bootstrapping_vector_index` and `chunks_indexed`).
 * SSE drops through a corporate proxy: use the non-streaming `/api/chat` endpoint, or disable response buffering on the proxy.

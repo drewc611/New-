@@ -15,7 +15,7 @@ All endpoints under `/api` accept and return `application/json` unless noted.
   "status": "ok",
   "version": "0.1.0",
   "llm_provider": "ollama",
-  "redis_ok": true,
+  "db_ok": true,
   "env": "prod"
 }
 ```

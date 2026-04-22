@@ -56,21 +56,23 @@ This document describes every value in `deploy/helm/usps-amie/values.yaml`. Defa
 
 Same shape as backend. Uses port 80 for the Service and 8080 for the container.
 
-## Redis
+## MongoDB
 
 | Key | Description |
 |---|---|
-| `redis.enabled` | Deploy the bundled Redis Stack StatefulSet (default true) |
-| `redis.image.repository` / `tag` | Image coordinates |
-| `redis.service.port` | Service port (default 6379) |
-| `redis.persistence.enabled` | Mount a PVC for data (default true) |
-| `redis.persistence.size` | PVC size (default 10Gi) |
-| `redis.persistence.storageClassName` | Specific storage class if any |
-| `redis.resources` | Resource requests and limits |
-| `redis.password` | Inline password, only used when `existingSecretName` empty |
-| `redis.existingSecretName` | Secret with `REDIS_PASSWORD` |
-| `redis.vectorIndex` | RediSearch index name (default `amie:vectors`) |
-| `redis.convoPrefix` | Key prefix for conversations (default `amie:conv:`) |
+| `mongo.enabled` | Deploy the bundled MongoDB StatefulSet (default true). Set to false to use an external Mongo or Atlas. |
+| `mongo.image.repository` / `tag` | Image coordinates (default `mongo:7.0`) |
+| `mongo.service.port` | Service port (default 27017) |
+| `mongo.persistence.enabled` | Mount a PVC for `/data/db` (default true) |
+| `mongo.persistence.size` | PVC size (default 20Gi) |
+| `mongo.persistence.storageClassName` | Specific storage class if any |
+| `mongo.resources` | Resource requests and limits |
+| `mongo.rootPassword` | Inline password, only used when `existingSecretName` empty |
+| `mongo.existingSecretName` | Secret with `MONGO_ROOT_PASSWORD` |
+| `mongo.database` | Database name (default `amie`) |
+| `mongo.useAtlasVectorSearch` | When true, point at Atlas and use `$vectorSearch` |
+| `mongo.atlasVectorIndexName` | Atlas vector search index name (default `vector_index`) |
+| `mongo.externalUri` | Used when `enabled=false`; overrides `MONGO_URI` |
 
 ## Ollama
 

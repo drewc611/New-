@@ -101,11 +101,16 @@ async def test_mock_verifier_attaches_suggestions_on_low_confidence():
 
 
 @pytest.mark.asyncio
-async def test_analytics_records_and_summarizes(patch_redis):
-    from app.core.redis_client import get_redis
+async def test_analytics_records_and_summarizes(patch_mongo):
+    from app.core.mongo_client import get_mongo_db
 
-    client = get_redis()
-    analytics = AddressAnalytics(client=client)
+    db = get_mongo_db()
+    analytics = AddressAnalytics(
+        db=db,
+        collection_name="test_events",
+        capped_size_mb=1,
+        capped_max_docs=1_000,
+    )
     result = await MockAddressVerifier().verify("1 Main St, Dallas, TX 75201")
     await analytics.record(result, verifier="mock", user_id="tester")
     result2 = await MockAddressVerifier().verify("not an address")

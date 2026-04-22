@@ -1,4 +1,4 @@
-"""Pytest fixtures. Uses fakeredis to avoid a live Redis dependency."""
+"""Pytest fixtures. Uses mongomock-motor to avoid a live MongoDB."""
 from __future__ import annotations
 
 import os
@@ -7,34 +7,46 @@ os.environ["LLM_PROVIDER"] = "mock"
 os.environ["ADDRESS_VERIFIER"] = "mock"
 os.environ["AUTH_ENABLED"] = "false"
 
-import fakeredis.aioredis
 import pytest
 from fastapi.testclient import TestClient
+from mongomock_motor import AsyncMongoMockClient
 
-from app.core import redis_client as rc_mod
+from app.core import mongo_client as mongo_mod
 from app.llm import factory as llm_factory
 from app.rag import retriever as retriever_mod
+from app.services import address_analytics as aa_mod
 from app.services import conversation_store as cs_mod
 from app.tools import address_base as ab_mod
 
 
 @pytest.fixture(autouse=True)
-def patch_redis(monkeypatch):
-    """Replace the real Redis client with fakeredis for every test."""
-    fake = fakeredis.aioredis.FakeRedis(decode_responses=False)
+def patch_mongo(monkeypatch):
+    """Replace the real Mongo client with an in-memory mock."""
+    fake_client = AsyncMongoMockClient()
 
-    def _fake_redis():
-        return fake
+    def _fake_client():
+        return fake_client
 
-    rc_mod.get_redis.cache_clear()
-    monkeypatch.setattr(rc_mod, "get_redis", _fake_redis)
+    def _fake_db():
+        return fake_client["amie_test"]
+
+    # Reset caches so the fresh fake is used everywhere.
+    mongo_mod.get_mongo_client.cache_clear()
+    mongo_mod.get_mongo_db.cache_clear()
+    monkeypatch.setattr(mongo_mod, "get_mongo_client", _fake_client)
+    monkeypatch.setattr(mongo_mod, "get_mongo_db", _fake_db)
     # Patch the names that consuming modules imported directly.
-    monkeypatch.setattr("app.services.conversation_store.get_redis", _fake_redis)
-    monkeypatch.setattr("app.rag.retriever.get_redis", _fake_redis)
+    monkeypatch.setattr(
+        "app.services.conversation_store.get_mongo_db", _fake_db
+    )
+    monkeypatch.setattr("app.rag.retriever.get_mongo_db", _fake_db)
+    monkeypatch.setattr(
+        "app.services.address_analytics.get_mongo_db", _fake_db
+    )
 
-    # Rebind downstream singletons that captured the real client.
     retriever_mod._index_instance.cache_clear()
     cs_mod.get_conversation_store.cache_clear()
+    aa_mod.get_analytics.cache_clear()
     ab_mod.get_verifier.cache_clear()
     llm_factory.get_llm_provider.cache_clear()
     yield
@@ -45,7 +57,7 @@ def client():
     # Import create_app after env vars are set
     from app.main import create_app
 
-    # Skip vector bootstrap (fakeredis lacks RediSearch commands)
+    # Skip vector bootstrap (the mock KB load pulls sentence-transformers)
     import app.rag.retriever as r
 
     async def _noop():

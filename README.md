@@ -6,7 +6,7 @@ Address Management Intelligent Engine. A conversational AI assistant for USPS Ad
 
 * **Backend**: FastAPI, Python 3.11
 * **Frontend**: React 18, TypeScript, Vite, Tailwind
-* **Data**: Redis Stack (RediSearch for vectors, RedisJSON for conversations, standard Redis for cache)
+* **Data**: MongoDB (conversations, KB chunks + embeddings, capped analytics collection; optional Atlas Vector Search)
 * **LLM providers**: Ollama (local), Anthropic (dev/cloud), Mock (tests)
 * **Deployment**: Docker Compose (local), Helm chart (Kubernetes)
 * **Runtime**: Any Kubernetes distribution (vanilla k8s, OpenShift, Rancher, kind, minikube)
@@ -23,10 +23,10 @@ Address Management Intelligent Engine. A conversational AI assistant for USPS Ad
       |
       +---> [Backend Deployment]  (FastAPI, uvicorn)
               |
-              +---> [Redis Stack StatefulSet]
-              |       - vectors  (RediSearch HNSW index)
-              |       - conversations  (RedisJSON)
-              |       - cache  (TTL keys)
+              +---> [MongoDB StatefulSet or Atlas]
+              |       - conversations    (user chat history)
+              |       - vectors          (KB chunks + embeddings)
+              |       - address_events   (capped analytics log)
               |
               +---> [Ollama Deployment, optional]
               |       - local LLM inference
@@ -83,7 +83,7 @@ docker compose up --build
 * Frontend: http://localhost:5173
 * Backend: http://localhost:8000
 * API docs: http://localhost:8000/docs
-* Redis Stack UI (RedisInsight): http://localhost:8001
+* MongoDB: mongodb://localhost:27017 (browse with MongoDB Compass)
 
 ## Documentation
 
