@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import chat, conversations, health, tools
+from app.api import auth, chat, conversations, health, tools
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import BodySizeLimitMiddleware, SecurityHeadersMiddleware
@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(chat.router)
     app.include_router(conversations.router)
     app.include_router(tools.router)

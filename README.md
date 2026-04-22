@@ -89,6 +89,7 @@ docker compose up --build
 
 | Topic | File |
 |---|---|
+| Okta single sign-on setup | [docs/okta-sso.md](docs/okta-sso.md) |
 | Markdown-driven configuration and content | [docs/markdown-driven.md](docs/markdown-driven.md) |
 | Environment variable reference | [docs/config.md](docs/config.md) |
 | Address verification pipeline and API | [docs/address-verification.md](docs/address-verification.md) |

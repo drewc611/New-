@@ -1,18 +1,30 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
   AddressVerifyResult,
+  AuthConfig,
   ChatRequest,
   ChatResponse,
   Conversation,
   ConversationSummary,
+  MeResponse,
   StreamEvent,
 } from "@/types";
+import { loadTokens } from "@/lib/oidc";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
 
+function authHeaders(): Record<string, string> {
+  const tokens = loadTokens();
+  return tokens ? { Authorization: `Bearer ${tokens.access_token}` } : {};
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(),
+      ...((init?.headers as Record<string, string>) ?? {}),
+    },
     ...init,
   });
   if (!resp.ok) {
@@ -25,6 +37,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () =>
     request<{ status: string; version: string; redis_ok: boolean }>("/api/health"),
+
+  authConfig: () => request<AuthConfig>("/api/auth/config"),
+  me: () => request<MeResponse>("/api/auth/me"),
 
   chat: (req: ChatRequest) =>
     request<ChatResponse>("/api/chat", {
@@ -50,7 +65,7 @@ export const api = {
   ): Promise<void> => {
     await fetchEventSource(`${BASE}/api/chat/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(req),
       signal,
       openWhenHidden: true,
