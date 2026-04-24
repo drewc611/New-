@@ -36,6 +36,10 @@ frontend/package-lock.json
 *.swp
 .DS_Store
 
+# Agent local config (personal overrides — keep out of git)
+.claude/settings.local.json
+.github/copilot-instructions.local.md
+
 # Helm
 deploy/helm/usps-amie/charts/
 deploy/helm/usps-amie/Chart.lock

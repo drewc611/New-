@@ -1,0 +1,20 @@
+# Spec template — copy to cowork/outputs/<kebab-name>.yaml and fill in.
+# Avoid vibe coding. Spec first, code second. Document the why, not the what.
+
+goal: "Short and clear objective. Written for the agent, not for humans."
+
+decisions:
+  - key: "Avoid vibe coding"
+  - key: "Spec first, code second"
+  - key: "Document the why, not the what"
+
+steps:
+  - id: implement
+    action: "Build feature according to plan"
+  - id: verify
+    action: "Tests pass, quality checks green"
+
+done:
+  - "Feature works"
+  - "Decisions logged"
+  - "Documentation updated"
