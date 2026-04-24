@@ -1,0 +1,23 @@
+# Copy this file next to the work it describes (e.g. frontend/src/features/<name>/spec.yaml).
+# Written for the agent, not humans. Keep it tight.
+
+goal: "Short and clear objective. One sentence."
+
+decisions:
+  - key: "Record why, not what"
+    reason: "Future readers can read the code for the what."
+  - key: "Name the trade-off you accepted"
+    reason: "So it isn't silently reversed later."
+  - key: "Call out anything surprising"
+    reason: "Invariant, workaround, or external constraint."
+
+steps:
+  - id: implement
+    action: "Build feature according to plan"
+  - id: verify
+    action: "Tests pass, type-check green, UI smoke-tested in browser"
+
+done:
+  - "Feature works"
+  - "Decisions logged"
+  - "Docs / CLAUDE.md updated if behaviour changed"

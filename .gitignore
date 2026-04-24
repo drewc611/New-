@@ -42,3 +42,7 @@ deploy/helm/usps-amie/Chart.lock
 
 # Docker
 .docker/
+
+# Claude scratch outputs (write folder - not versioned)
+.claude/outputs/*
+!.claude/outputs/.gitkeep
