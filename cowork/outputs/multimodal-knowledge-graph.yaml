@@ -1,0 +1,75 @@
+goal: >
+  Add a five-stage multimodal knowledge-graph pipeline under backend/app/mmkg/
+  that turns heterogeneous documents into a queryable Redis-backed graph and
+  fuses graph traversal with the existing vector retriever for modality-aware
+  retrieval. Keep the LLM provider-agnostic, keep the backend fakeredis-
+  compatible, and avoid heavy new dependencies.
+
+decisions:
+  - key: "Stay provider-agnostic"
+    why: "AMIE already abstracts LLMs via app.llm.factory.get_llm_provider().
+          Analyzers in stage 3 must use that abstraction so mock/ollama/anthropic
+          all work, and tests under LLM_PROVIDER=mock stay hermetic."
+  - key: "Reuse RedisVectorIndex, add a parallel mmkg index"
+    why: "The existing amie:vectors HNSW index is tuned for plain chunks.
+          Multimodal content needs extra fields (modality, section_path,
+          entity_id). We keep amie:vectors untouched and introduce a second
+          index amie:mmkg:vec for enriched modal blocks, queried together via
+          fusion in stage 5."
+  - key: "MinerU is pluggable, not required"
+    why: "MinerU brings heavy deps (torch, layoutlmv3) that we will not
+          bundle in this repo. Stage 1 defines a DocumentParser protocol,
+          ships Markdown/HTML/Text parsers, and exposes a hook for a future
+          MinerU implementation behind a feature flag — matching the project's
+          provider-agnostic philosophy."
+  - key: "Graph lives in Redis (RedisJSON + sets), not a new DB"
+    why: "CLAUDE.md rule: Redis Stack handles three roles. Entities stored as
+          JSON at amie:mmkg:ent:{id}, relations as sorted sets keyed by
+          amie:mmkg:rel:{src}:{type} with weight scores, section tree at
+          amie:mmkg:sec:{doc_id}."
+  - key: "Concurrent pipelines via asyncio.gather, not threads"
+    why: "FastAPI is async-first here; keeping analyzers as async coroutines
+          lets stage 2 fan them out with gather() while still being testable
+          under pytest-asyncio."
+  - key: "Weighted relationship scoring is data-driven"
+    why: "Weights live in mmkg/weights.py as a plain dict so relevance tuning
+          stays a config change, not a code change."
+
+steps:
+  - id: s1-parsers
+    action: "mmkg/parsers.py — DocumentParser protocol, MarkdownParser,
+             HTMLParser, PlainTextParser; emits ParsedBlock list with modality,
+             section_path, order, raw_content."
+  - id: s2-router
+    action: "mmkg/router.py — categorize blocks, build section tree (hierarchy
+             extraction), fan out to analyzer coroutines via asyncio.gather."
+  - id: s3-analyzers
+    action: "mmkg/analyzers.py — VisualContentAnalyzer, StructuredDataInterpreter,
+             MathematicalExpressionParser, ExtensibleModalityHandler registry.
+             All use get_llm_provider() for semantic enrichment; handle
+             degraded mode when provider returns empty."
+  - id: s4-graph
+    action: "mmkg/graph.py — MultiModalKnowledgeGraph with add_entity,
+             add_relation, belongs_to chains, weighted scoring; persists to
+             Redis; mmkg/weights.py holds the relation weight table."
+  - id: s5-retrieval
+    action: "mmkg/retrieval.py — ModalityAwareRetriever fuses vector search
+             (existing RedisVectorIndex + a new mmkg vector index) with graph
+             traversal; applies modality-aware ranking and coherence
+             reweighting using belongs_to siblings."
+  - id: wire
+    action: "mmkg/pipeline.py — top-level ingest(path|text) entry point;
+             api/mmkg.py — admin endpoints /api/mmkg/ingest and /api/mmkg/query;
+             register router in main.py."
+  - id: tests
+    action: "backend/tests/test_mmkg_*.py — parsers, router hierarchy, graph
+             persistence (fakeredis), retrieval fusion, API smoke test."
+  - id: verify
+    action: "ruff check, pytest, commit, push to
+             claude/multimodal-knowledge-graph-EQvrO."
+
+done:
+  - "Five stages live under backend/app/mmkg/ with clean module boundaries."
+  - "Ingest+query API routes work end-to-end against fakeredis."
+  - "Tests pass with LLM_PROVIDER=mock, no network calls."
+  - "ruff is clean."

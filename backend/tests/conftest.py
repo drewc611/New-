@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.core import redis_client as rc_mod
 from app.llm import factory as llm_factory
+from app.mmkg import pipeline as mmkg_pipeline_mod
 from app.rag import retriever as retriever_mod
 from app.services import conversation_store as cs_mod
 from app.tools import address_base as ab_mod
@@ -31,12 +32,14 @@ def patch_redis(monkeypatch):
     # Patch the names that consuming modules imported directly.
     monkeypatch.setattr("app.services.conversation_store.get_redis", _fake_redis)
     monkeypatch.setattr("app.rag.retriever.get_redis", _fake_redis)
+    monkeypatch.setattr("app.mmkg.pipeline.get_redis", _fake_redis)
 
     # Rebind downstream singletons that captured the real client.
     retriever_mod._index_instance.cache_clear()
     cs_mod.get_conversation_store.cache_clear()
     ab_mod.get_verifier.cache_clear()
     llm_factory.get_llm_provider.cache_clear()
+    mmkg_pipeline_mod.get_pipeline.cache_clear()
     yield
 
 
